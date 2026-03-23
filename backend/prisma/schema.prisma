@@ -1,0 +1,176 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique @db.VarChar(50)
+  descripcion String?
+  usuarios    Usuario[]
+
+  @@map("roles")
+}
+
+model Area {
+  id     Int      @id @default(autoincrement())
+  nombre String   @db.VarChar(100)
+  sigla  String   @unique @db.VarChar(10)
+  jefeId Int?     @map("jefe_id")
+  activo Boolean  @default(true)
+  jefe   Usuario? @relation("AreaJefe", fields: [jefeId], references: [id])
+
+  usuarios            Usuario[]     @relation("AreaUsuarios")
+  tiposTramite        TipoTramite[]
+  expedientesActuales Expediente[]  @relation("AreaActual")
+  movimientosOrigen   Movimiento[]  @relation("AreaOrigen")
+  movimientosDestino  Movimiento[]  @relation("AreaDestino")
+
+  @@map("areas")
+}
+
+model Usuario {
+  id               Int       @id @default(autoincrement())
+  dni              String    @unique @db.VarChar(8)
+  nombres          String    @db.VarChar(100)
+  apellidos        String    @db.VarChar(100)
+  correo           String    @unique @db.VarChar(150)
+  passwordHash     String    @map("password_hash") @db.VarChar(255)
+  areaId           Int?      @map("area_id")
+  rolId            Int       @map("rol_id")
+  intentosFallidos Int       @default(0) @map("intentos_fallidos")
+  bloqueadoHasta   DateTime? @map("bloqueado_hasta")
+  activo           Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  area               Area?               @relation("AreaUsuarios", fields: [areaId], references: [id])
+  rol                Role                @relation(fields: [rolId], references: [id])
+  areasComoJefe      Area[]              @relation("AreaJefe")
+  expedientesCreados Expediente[]        @relation("ExpedienteCreador")
+  movimientos        Movimiento[]
+  documentos         Documento[]
+  bitacora           BitacoraAuditoria[]
+
+  @@map("usuarios")
+}
+
+model TipoTramite {
+  id            Int     @id @default(autoincrement())
+  nombre        String  @db.VarChar(200)
+  diasHabiles   Int     @map("dias_habiles")
+  costoSoles    Decimal @default(0) @map("costo_soles") @db.Decimal(8, 2)
+  areaDestinoId Int     @map("area_destino_id")
+  activo        Boolean @default(true)
+
+  areaDestino Area         @relation(fields: [areaDestinoId], references: [id])
+  expedientes Expediente[]
+
+  @@map("tipos_tramite")
+}
+
+model Ciudadano {
+  id             Int          @id @default(autoincrement())
+  tipoDoc        String       @default("DNI") @map("tipo_doc") @db.VarChar(10)
+  nroDocumento   String       @map("nro_documento") @db.VarChar(20)
+  nombreCompleto String       @map("nombre_completo") @db.VarChar(200)
+  correo         String?      @db.VarChar(150)
+  celular        String?      @db.VarChar(15)
+  expedientes    Expediente[]
+
+  @@unique([tipoDoc, nroDocumento])
+  @@map("ciudadanos")
+}
+
+model Expediente {
+  id            Int      @id @default(autoincrement())
+  codigo        String   @unique @db.VarChar(20)
+  ciudadanoId   Int      @map("ciudadano_id")
+  tipoTramiteId Int      @map("tipo_tramite_id")
+  areaActualId  Int      @map("area_actual_id")
+  creadoPorId   Int      @map("creado_por_id")
+  estado        String   @default("Recibido") @db.VarChar(30)
+  prioridad     String   @default("Normal") @db.VarChar(10)
+  asunto        String
+  fechaLimite   DateTime @map("fecha_limite") @db.Date
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @map("updated_at")
+
+  ciudadano      Ciudadano      @relation(fields: [ciudadanoId], references: [id])
+  tipoTramite    TipoTramite    @relation(fields: [tipoTramiteId], references: [id])
+  areaActual     Area           @relation("AreaActual", fields: [areaActualId], references: [id])
+  creadoPor      Usuario        @relation("ExpedienteCreador", fields: [creadoPorId], references: [id])
+  movimientos    Movimiento[]
+  documentos     Documento[]
+  notificaciones Notificacion[]
+
+  @@map("expedientes")
+}
+
+model Movimiento {
+  id              Int      @id @default(autoincrement())
+  expedienteId    Int      @map("expediente_id")
+  usuarioId       Int      @map("usuario_id")
+  tipoAccion      String   @map("tipo_accion") @db.VarChar(50)
+  comentario      String?
+  areaOrigenId    Int?     @map("area_origen_id")
+  areaDestinoId   Int?     @map("area_destino_id")
+  estadoResultado String?  @map("estado_resultado") @db.VarChar(30)
+  fechaHora       DateTime @default(now()) @map("fecha_hora")
+
+  expediente  Expediente @relation(fields: [expedienteId], references: [id])
+  usuario     Usuario    @relation(fields: [usuarioId], references: [id])
+  areaOrigen  Area?      @relation("AreaOrigen", fields: [areaOrigenId], references: [id])
+  areaDestino Area?      @relation("AreaDestino", fields: [areaDestinoId], references: [id])
+
+  @@map("movimientos")
+}
+
+model Documento {
+  id             Int      @id @default(autoincrement())
+  expedienteId   Int      @map("expediente_id")
+  subidoPorId    Int      @map("subido_por_id")
+  nombreOriginal String   @map("nombre_original") @db.VarChar(255)
+  nombreUuid     String   @unique @map("nombre_uuid") @db.VarChar(255)
+  rutaStorage    String   @map("ruta_storage") @db.VarChar(500)
+  etapa          String   @default("Solicitud") @db.VarChar(50)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  expediente Expediente @relation(fields: [expedienteId], references: [id])
+  subidoPor  Usuario    @relation(fields: [subidoPorId], references: [id])
+
+  @@map("documentos")
+}
+
+model Notificacion {
+  id                Int       @id @default(autoincrement())
+  expedienteId      Int       @map("expediente_id")
+  destinatarioEmail String    @map("destinatario_email") @db.VarChar(150)
+  tipoEvento        String    @map("tipo_evento") @db.VarChar(50)
+  estadoEnvio       String    @default("Pendiente") @map("estado_envio") @db.VarChar(20)
+  enviadoAt         DateTime? @map("enviado_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  expediente Expediente @relation(fields: [expedienteId], references: [id])
+
+  @@map("notificaciones")
+}
+
+model BitacoraAuditoria {
+  id              Int      @id @default(autoincrement())
+  tablaAfectada   String   @map("tabla_afectada") @db.VarChar(50)
+  operacion       String   @db.VarChar(10)
+  idRegistro      Int      @map("id_registro")
+  datosAnteriores Json?    @map("datos_anteriores")
+  datosNuevos     Json?    @map("datos_nuevos")
+  usuarioId       Int?     @map("usuario_id")
+  ipUsuario       String?  @map("ip_usuario")
+  fechaHora       DateTime @default(now()) @map("fecha_hora")
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@map("bitacora_auditoria")
+}

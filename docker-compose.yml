@@ -1,0 +1,51 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: tramite_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tramite_db
+      POSTGRES_USER: tramite_user
+      POSTGRES_PASSWORD: tramite_pass123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/db/init:/docker-entrypoint-initdb.d
+    networks:
+      - tramite_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: tramite_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - tramite_net
+
+  minio:
+    image: minio/minio
+    container_name: tramite_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - tramite_net
+
+volumes:
+  pgdata:
+  minio-data:
+
+networks:
+  tramite_net:
+    driver: bridge
