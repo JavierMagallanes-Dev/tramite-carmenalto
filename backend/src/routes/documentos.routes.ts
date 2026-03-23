@@ -17,6 +17,5 @@ router.post('/subir',
 )
 
 router.get('/expediente/:expedienteId', documentosController.listar)
-router.get('/:id/url',                 documentosController.descargar)
-
+router.get('/:id/descargar',           documentosController.descargar)
 export default router

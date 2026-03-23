@@ -1,6 +1,45 @@
 version: '3.9'
 
 services:
+
+  nginx:
+    image: nginx:alpine
+    container_name: tramite_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+      - frontend
+    networks:
+      - tramite_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tramite_frontend
+    restart: unless-stopped
+    networks:
+      - tramite_net
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tramite_api
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.production
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    networks:
+      - tramite_net
+
   postgres:
     image: postgres:15-alpine
     container_name: tramite_postgres
@@ -9,8 +48,6 @@ services:
       POSTGRES_DB: tramite_db
       POSTGRES_USER: tramite_user
       POSTGRES_PASSWORD: tramite_pass123
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/db/init:/docker-entrypoint-initdb.d
@@ -21,8 +58,6 @@ services:
     image: redis:7-alpine
     container_name: tramite_redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     networks:
       - tramite_net
 

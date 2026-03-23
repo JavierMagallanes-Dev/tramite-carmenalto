@@ -1,6 +1,8 @@
 import { Request, Response } from 'express'
 import { documentosService } from '../services/documentos.service'
-import { ok, created, badRequest, serverError } from '../utils/response'
+import { ok, created, badRequest, notFound, serverError } from '../utils/response'
+import { documentosRepository } from '../repositories/documentos.repository'
+import { minioClient } from '../utils/minio'
 import prisma from '../utils/prisma'
 export const documentosController = {
   async subir(req: Request, res: Response) {
@@ -35,14 +37,34 @@ export const documentosController = {
   },
 
   async descargar(req: Request, res: Response) {
-    try {
-      const data = await documentosService.obtenerUrl(parseInt(req.params['id'] as string)) // ✅
-      return ok(res, data)
-    } catch (error) {
-      if (error instanceof Error) return badRequest(res, error.message)
-      return serverError(res, error)
-    }
-  },
+  try {
+    const id = parseInt(req.params['id'] as string)
+    console.log('[Descargar] id:', id, 'params:', req.params)
+
+    if (isNaN(id)) return badRequest(res, 'ID inválido')
+
+    const doc = await documentosRepository.findById(id)
+    console.log('[Descargar] doc:', doc)
+
+    if (!doc) return notFound(res, 'Documento no encontrado')
+
+    const stream = await minioClient.getObject(
+      process.env.MINIO_BUCKET || 'tramite-docs',
+      doc.nombreUuid
+    )
+
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${encodeURIComponent(doc.nombreOriginal)}"`
+    )
+    res.setHeader('Content-Type', 'application/octet-stream')
+    stream.pipe(res)
+  } catch (error) {
+    console.error('[Descargar] error:', error)
+    if (error instanceof Error) return badRequest(res, error.message)
+    return serverError(res, error)
+  }
+},
   async subirPublico(req: Request, res: Response) {
   try {
     if (!req.file) return badRequest(res, 'No se recibió ningún archivo')

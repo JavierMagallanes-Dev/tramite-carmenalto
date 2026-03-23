@@ -262,18 +262,18 @@ const DocumentosExpediente = ({ expedienteId }: { expedienteId: number }) => {
   })
 
   const handleDescargar = async (docId: number, nombre: string) => {
-    try {
-      const res = await documentosApi.obtenerUrl(docId)
-      const url = res.data.data.url
-      const a = document.createElement('a')
-      a.href = url
-      a.download = nombre
-      a.target = '_blank'
-      a.click()
-    } catch {
-      toast.error('Error al obtener el archivo')
-    }
+  try {
+    const res = await documentosApi.descargar(docId)
+    const url = window.URL.createObjectURL(new Blob([res.data]))
+    const a   = document.createElement('a')
+    a.href     = url
+    a.download = nombre
+    a.click()
+    window.URL.revokeObjectURL(url)
+  } catch {
+    toast.error('Error al descargar el archivo')
   }
+}
 
   if (isLoading) return null
 
